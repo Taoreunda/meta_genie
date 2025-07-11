@@ -568,10 +568,14 @@ def render_data_navigation():
             )
             
         with col3:
-            final_filter = st.selectbox(
+            # 최종 결과 필터 (다중 선택)
+            all_final_results = ["Include", "Exclude", "불일치"]
+            final_filter = st.multiselect(
                 "최종 결과 필터",
-                ["전체", "Include", "Exclude", "불일치"],
-                key="final_filter"
+                options=all_final_results,
+                default=[],
+                key="final_filter",
+                help="여러 결과를 동시에 선택할 수 있습니다"
             )
     else:
         col1, col2 = st.columns(2)
@@ -591,7 +595,7 @@ def render_data_navigation():
                 default=[],
                 key="year_filter"
             )
-            final_filter = "전체"
+            final_filter = []  # 일반 파일은 빈 리스트로 설정
     
     if status_filter != "전체":
         if status_filter == "완료":
@@ -603,15 +607,25 @@ def render_data_navigation():
     if year_filter:
         df = df[df['Publication Year'].isin(year_filter)]
     
-    if is_hybrid_file and final_filter != "전체":
-        if final_filter == "Include":
-            df = df[df['final_result'] == 'include']
-        elif final_filter == "Exclude":
-            df = df[df['final_result'] == 'exclude']
-        elif final_filter == "불일치":
-            # rule_result와 final_result가 다른 경우
-            rule_col = 'rule_result' if 'rule_result' in df.columns else 'result'
-            df = df[df[rule_col] != df['final_result']]
+    # 최종 결과 필터링 (다중 선택 대응)
+    if is_hybrid_file and final_filter:
+        filter_conditions = []
+        for filter_val in final_filter:
+            if filter_val == "Include":
+                filter_conditions.append(df['final_result'] == 'include')
+            elif filter_val == "Exclude":
+                filter_conditions.append(df['final_result'] == 'exclude')
+            elif filter_val == "불일치":
+                # rule_result와 final_result가 다른 경우
+                rule_col = 'rule_result' if 'rule_result' in df.columns else 'result'
+                filter_conditions.append(df[rule_col] != df['final_result'])
+        
+        # OR 조건으로 결합 (하나라도 해당하면 포함)
+        if filter_conditions:
+            combined_condition = filter_conditions[0]
+            for condition in filter_conditions[1:]:
+                combined_condition = combined_condition | condition
+            df = df[combined_condition]
     
     # 페이지네이션
     items_per_page = 10
